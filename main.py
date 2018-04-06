@@ -53,6 +53,3 @@ def initCity(create_trips = False,map_trip_to_cell=False,map_trip_to_road = Fals
 if __name__ == '__main__':
     initCity()
     m = Trip.computeTransitionMatrices(hops=[1])
-
-    DataFrame(m[0]).to_csv("/Volumes/Porter's Data/penn-state/data-sets/tmp.csv")
-    tmp = 0

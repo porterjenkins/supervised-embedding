@@ -214,8 +214,29 @@ class Trip:
 
             # check if trajectory has at least two points (starting and ending road segments)
             if len(roads_unique) >=2:
-                # check for valid road id. If start road is nan, skip entire trip
-                try:
+                hop_cnt = 0
+                for hop_length in hops:
+                    for road_idx in range(len(roads_unique) - hop_length):
+
+                        try:
+                            start_road = int(roads_unique[road_idx])
+                            end_road = int(roads_unique[road_idx + hop_length])
+                            transition[hop_cnt - 1, start_road-1, end_road-1] += 1
+                        except ValueError:
+                            pass
+
+                    hop_cnt +=1
+
+                    progress = round((cnt / float(len(Trip.all_trips) * len(hops))) * 100, 2)
+                    sys.stdout.write("\r Transition Matrices --> {}% complete".format(progress))
+                    sys.stdout.flush()
+
+
+
+
+
+                """try:
+                    # check for valid road id. If start road is nan, skip entire trip
                     # subtract 1 from road id for zero-indexing
                     start_road = int(roads_unique[0]) - 1
 
@@ -229,11 +250,9 @@ class Trip:
                         hop_cnt += 1
 
                 except ValueError:
-                    pass
+                    pass"""
 
-            progress =  round((cnt / float(len(Trip.all_trips)*len(hops)))*100,2)
-            sys.stdout.write("\r Transition Matrices --> {}% complete".format(progress))
-            sys.stdout.flush()
+
 
 
         return transition
