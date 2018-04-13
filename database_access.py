@@ -34,6 +34,11 @@ class DatabaseAccess:
             file_dict[date] = os.listdir(self.traj_dir + "/" + date)
         return file_dict
 
+    def getCamTrafficFiles(self):
+        dates = os.listdir(self.cam_dir + "/traffic")
+        return dates
+
+
     def readGpsData(self,date,file):
         fname = self.traj_dir + "/" + date + "/" + file
         dta =  pd.read_csv(fname,engine='c')
@@ -65,11 +70,19 @@ class DatabaseAccess:
                            header=None,
                            names = ['node','adj_node'])
 
-    def getNodeCoordinates(self,):
+    def getNodeCoordinates(self):
         fname = self.road_dir + "/bignodes.txt"
         return pd.read_csv(fname,
                            header = None,
                            names = ['node','longitude','latitude'])
+
+    def getNodeLanes(self):
+        fname = self.road_dir + "/bignode_lanes.txt"
+        return pd.read_csv(fname,
+                           header=None,
+                           index_col = 0,
+                           names=['lane_cnt'])
+
 
 
 
@@ -203,6 +216,9 @@ class SummaryPlots:
                     alpha=.33)
 
         plt.show()
+
+
+
 
 
 

@@ -1,10 +1,11 @@
 from database_access import DatabaseAccess
 from road import RoadNode
-#from grid import GridCell
+from grid import GridCell
 import numpy as np
 import pickle
 from scipy.spatial.distance import euclidean
 import sys
+from sklearn.preprocessing import normalize
 
 class Trip:
 
@@ -81,30 +82,6 @@ class Trip:
 
         print("{} total gps records founds".format(n_gps_points))
 
-    @classmethod
-    def mapTripToRoad(cls):
-
-        if cls.all_trips is None:
-            cls.createAllTrips()
-
-        RoadNode.createRoads(road_dir="/Volumes/Porter's Data/penn-state/data-sets/jinan/road-network")
-
-        traj_location_mtx = []
-        for trip in Trip.all_trips:
-            road_node_list = []
-            for time_stamp in trip.trajectory.itertuples():
-                car_road_dist = []
-                ts_loc = [time_stamp.latitude,time_stamp.longitude]
-                ids = []
-                for road_id in RoadNode.all_roads.keys():
-                    road_i_loc = RoadNode.all_roads[road_id].coordinates
-                    car_road_dist.append(euclidean(ts_loc,road_i_loc))
-                    ids.append(road_id)
-
-                closest_road = np.argmin(car_road_dist)
-                road_node_list.append(list(RoadNode.all_roads.keys())[closest_road])
-
-            trip.updateRoadNodes(road_node_list)
 
     @classmethod
     def mapTripToCell(cls,coord_dict,lat_cut,lon_cut,save_pickle=False):
@@ -193,9 +170,23 @@ class Trip:
         if save_pickle:
             cls.allTripsToPickle()
 
+    @classmethod
+    def init(cls,dao,read_pickle):
+        Trip.setDao(dao)
+        if read_pickle:
+            Trip.getTripsPickle()
+        else:
+            Trip.createAllTrips(save_pickle=True)
+            Trip.mapTripToCell(coord_dict=GridCell.cell_coord_dict,
+                               lat_cut=GridCell.lat_cut_points,
+                               lon_cut=GridCell.lon_cut_points,
+                               save_pickle=True)
+            Trip.mapTripToRoads(cell_dict=GridCell.cell_id_dict, save_pickle=True)
+
+
 
     @classmethod
-    def computeTransitionMatrices(cls,hops):
+    def computeTransitionMatrices(cls,hops,l2_norm = True):
         """
 
         :param hops: (list) hop lengths to try; i.e., [1,2,3,10]
@@ -209,13 +200,14 @@ class Trip:
 
         cnt = 0
         for trip in Trip.all_trips:
-            cnt +=1
+
             roads_unique = trip.trajectory.road_node.unique()
 
             # check if trajectory has at least two points (starting and ending road segments)
             if len(roads_unique) >=2:
                 hop_cnt = 0
                 for hop_length in hops:
+                    cnt += 1
                     for road_idx in range(len(roads_unique) - hop_length):
 
                         try:
@@ -231,30 +223,14 @@ class Trip:
                     sys.stdout.write("\r Transition Matrices --> {}% complete".format(progress))
                     sys.stdout.flush()
 
+        # sum of over hops; i.e., M = A + A^2 + A^3 .... A^n
+        transition = transition.sum(axis=0)
 
+        sys.stdout.write("\r Transition Matrices --> 100% complete")
+        sys.stdout.flush()
 
-
-
-                """try:
-                    # check for valid road id. If start road is nan, skip entire trip
-                    # subtract 1 from road id for zero-indexing
-                    start_road = int(roads_unique[0]) - 1
-
-                    hop_cnt = 0
-                    for hop_length in hops:
-                        # subtract 1 from road id for zero-indexing
-                        end_road = int(roads_unique[hop_length]) - 1
-                        transition[hop_cnt-1,start_road,end_road] += 1
-
-
-                        hop_cnt += 1
-
-                except ValueError:
-                    pass"""
-
-
-
-
+        if l2_norm:
+            transition = normalize(X=transition,axis=1,norm='l2')
         return transition
 
 

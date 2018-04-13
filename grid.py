@@ -1,7 +1,6 @@
 from database_access import DatabaseAccess
 import numpy as np
 from road import RoadNode
-from trip import Trip
 
 
 
@@ -83,6 +82,9 @@ class GridCell:
     @classmethod
     def mapRoadsToCell(cls):
         print("Mapping roads to cells...")
+        if not RoadNode.all_roads.keys():
+            RoadNode.init(dao = cls.dao)
+
         cells_w_road = 0
         for cell in cls.cell_id_dict.values():
             cell.getRoadsInCell()
@@ -90,6 +92,12 @@ class GridCell:
                 cells_w_road +=1
 
         print("{} cells of {} contain roads".format(cells_w_road,len(cls.cell_id_dict)))
+
+    @classmethod
+    def init(cls,dao):
+        GridCell.setDao(dao)
+        GridCell.initAllCells(n_grids=20)
+        GridCell.mapRoadsToCell()
 
 
 if __name__ == '__main__':
