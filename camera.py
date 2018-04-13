@@ -24,7 +24,7 @@ class TrafficCam:
         self.direction = direction
         self.closest_road = closest_road
         self.traffic_data = pd.DataFrame()
-        self.volume = 0
+        self.volume = dict()
 
 
 
@@ -34,8 +34,8 @@ class TrafficCam:
     def updateTrafficData(self,df):
         self.traffic_data = pd.concat((self.traffic_data,df))
         #self.traffic_data.reset_index(inplace=True)
-    def updateVolume(self,cnt):
-        self.volume += cnt
+    def updateVolume(self,time_stamp,cnt):
+        self.volume[time_stamp] = self.volume.get(time_stamp,0) + cnt
 
     @classmethod
     def setDao(cls,dao):
@@ -70,13 +70,22 @@ class TrafficCam:
                                     nrows=n_records_file,
                                     usecols=use_cols)
 
+            # Group into 1 hour intervals
+            #date_slice = date_data['time'].str.slice(start=0,stop=19)
+            #date_data['time'] = pd.to_datetime(date_slice)
+            #date_data.set_index(pd.DatetimeIndex(date_data['time']),inplace=True)
+            #hourly_volume = date_data.groupby(pd.TimeGrouper(freq='60Min')).size()
+
+
+
+
             cams_in_date_data = np.unique(date_data.camera_id)
             for cam_id in cams_in_date_data:
                 cam = cls.all_cams.get(cam_id)
                 if cam:
                     cam_dta = date_data[date_data.camera_id == cam.id]
                     cam.updateTrafficData(cam_dta)
-                    cam.updateVolume(date_data.shape[0])
+                    cam.updateVolume(date.split(".")[0],cam_dta.shape[0])
 
             progress = round((cnt / len(dates))*100,2)
 
@@ -169,7 +178,7 @@ if __name__ == '__main__':
     dao = DatabaseAccess(city='jinan', data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
     TrafficCam.setDao(dao=dao)
     TrafficCam.createAllCams()
-    TrafficCam.getCameraTrafficData(n_records_file=1000)
+    TrafficCam.getCameraTrafficData()
     TrafficCam.mapCamToRoads(save_pickle=True)
 
 

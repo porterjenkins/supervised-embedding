@@ -46,7 +46,7 @@ if __name__ == '__main__':
     dao = DatabaseAccess(city='jinan', data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
     #parser = GraphParser(dao)
     #parser.graphParser(xml_file="jinan_large.osm")
-    initCity(dao=dao,trip_pickle=True,cam_pickle=True)
+    initCity(dao=dao,trip_pickle=True,cam_pickle=False)
     transition = Trip.computeTransitionMatrices(hops=[1],l2_norm=True)
     X, y = RoadNode.getRoadFeatures(similarity_matrix=transition)
     print(X)
