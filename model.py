@@ -57,12 +57,13 @@ class Model:
         # ipdb.set_trace()
 
     def regression(self, train_idx, test_idx, regression_method):
-        y_pred = np.zeros_like(self.edge_volume_mat[test_idx])
-        for t in range(self.edge_volume_mat.shape[1]):
-            if t % 100 is 0:
-                print(t)
-            model = LinearRegression()
-            model.fit(self.edge_feature_mat[train_idx], self.edge_volume_mat[train_idx][:, t])
-            y_pred[:, t] = model.predict(self.edge_feature_mat[test_idx])
+        #y_pred = np.zeros(shape=self.edge_volume_mat.shape[0])
+        #y_pred = np.zeros(self.edge_volume_mat[test_idx])
+        #for t in range(self.edge_volume_mat.shape[1]):
+        #    if t % 100 is 0:
+                #print(t)
+        model = LinearRegression()
+        model.fit(self.edge_feature_mat[train_idx], self.edge_volume_mat[train_idx])
+        y_pred = model.predict(self.edge_feature_mat[test_idx])
         rmse, mape = Model.eval(self.edge_volume_mat[test_idx], y_pred)
         print("test regression {2}: rmse {0}, mape {1}.".format(rmse, mape, regression_method))

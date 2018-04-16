@@ -6,7 +6,7 @@ from scipy.spatial.distance import euclidean
 import numpy as np
 import sys
 import pickle
-
+from collections import OrderedDict
 import warnings
 
 
@@ -15,6 +15,7 @@ class TrafficCam:
     # Init class attributes
     dao = None
     all_cams = dict()
+    n_date_times = 0
 
     def __init__(self,id,intersection_name,deployed_date,coordinates,direction,closest_road=None):
         self.id = id
@@ -24,7 +25,8 @@ class TrafficCam:
         self.direction = direction
         self.closest_road = closest_road
         self.traffic_data = pd.DataFrame()
-        self.volume = dict()
+        self.volume = OrderedDict()
+        self.n_traffic_dates = None
 
 
 
@@ -34,6 +36,7 @@ class TrafficCam:
     def updateTrafficData(self,df):
         self.traffic_data = pd.concat((self.traffic_data,df))
         #self.traffic_data.reset_index(inplace=True)
+
     def updateVolume(self,time_stamp,cnt):
         self.volume[time_stamp] = self.volume.get(time_stamp,0) + cnt
 
@@ -62,6 +65,8 @@ class TrafficCam:
                 'time','speed','lane','veh_direction','driving_state','location_id','cam_direction']
         use_cols = ['camera_id','license_plate','time','speed','cam_direction']
         cnt = 0
+
+
         for date in dates:
             cnt += 1
             date_data = pd.read_csv(cls.dao.cam_dir + "/traffic/" + date,
@@ -77,15 +82,25 @@ class TrafficCam:
             #hourly_volume = date_data.groupby(pd.TimeGrouper(freq='60Min')).size()
 
 
-
-
             cams_in_date_data = np.unique(date_data.camera_id)
-            for cam_id in cams_in_date_data:
-                cam = cls.all_cams.get(cam_id)
-                if cam:
+            for cam in cls.all_cams.values():
+                if cam.id in cams_in_date_data:
                     cam_dta = date_data[date_data.camera_id == cam.id]
                     cam.updateTrafficData(cam_dta)
                     cam.updateVolume(date.split(".")[0],cam_dta.shape[0])
+                else:
+                    cam.updateVolume(date.split(".")[0], 0)
+
+
+
+            #for cam_id in cams_in_date_data:
+            #    cam = cls.all_cams.get(cam_id)
+            #    if cam:
+            #        cam_dta = date_data[date_data.camera_id == cam.id]
+            #        cam.updateTrafficData(cam_dta)
+            #        cam.updateVolume(date.split(".")[0],cam_dta.shape[0])
+            #    else:
+
 
             progress = round((cnt / len(dates))*100,2)
 
@@ -178,7 +193,7 @@ if __name__ == '__main__':
     dao = DatabaseAccess(city='jinan', data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
     TrafficCam.setDao(dao=dao)
     TrafficCam.createAllCams()
-    TrafficCam.getCameraTrafficData()
-    TrafficCam.mapCamToRoads(save_pickle=True)
+    TrafficCam.getCameraTrafficData(save_pickle=True)
+    #TrafficCam.mapCamToRoads(save_pickle=True)
 
 
