@@ -7,7 +7,7 @@ import numpy as np
 import sys
 import pickle
 from collections import OrderedDict
-import warnings
+from grid import GridCell
 
 
 class TrafficCam:
@@ -17,8 +17,10 @@ class TrafficCam:
     all_cams = dict()
     n_date_times = 0
 
-    def __init__(self,id,intersection_name,deployed_date,coordinates,direction,closest_road=None):
+    def __init__(self,id,full_id,loc_id,intersection_name,deployed_date,coordinates,direction,closest_road=None):
         self.id = id
+        self.full_id = full_id
+        self.loc_id = loc_id
         self.intersection_name = intersection_name
         self.deployed_date = deployed_date
         self.coordinates = coordinates
@@ -60,10 +62,9 @@ class TrafficCam:
     def getCameraTrafficData(cls,n_records_file = None,save_pickle=False):
         print("Getting camera traffic data...")
         dates = cls.dao.getCamTrafficFiles()
-        warnings.filterwarnings('error')
         all_cols = ["license_plate","license plate_category","veh_brand","veh_color","license_plate_color",'camera_id',
                 'time','speed','lane','veh_direction','driving_state','location_id','cam_direction']
-        use_cols = ['camera_id','license_plate','time','speed','cam_direction']
+        use_cols = ['camera_id','license_plate','time','speed','cam_direction','location_id']
         cnt = 0
 
 
@@ -82,24 +83,15 @@ class TrafficCam:
             #hourly_volume = date_data.groupby(pd.TimeGrouper(freq='60Min')).size()
 
 
-            cams_in_date_data = np.unique(date_data.camera_id)
+            grouper = date_data.groupby(by=['camera_id','location_id']).size()
+
             for cam in cls.all_cams.values():
-                if cam.id in cams_in_date_data:
-                    cam_dta = date_data[date_data.camera_id == cam.id]
-                    cam.updateTrafficData(cam_dta)
-                    cam.updateVolume(date.split(".")[0],cam_dta.shape[0])
-                else:
+
+                try:
+                    cam_volume = grouper[cam.id][cam.loc_id]
+                    cam.updateVolume(date.split(".")[0],cam_volume)
+                except (IndexError , KeyError, TypeError) as e:
                     cam.updateVolume(date.split(".")[0], 0)
-
-
-
-            #for cam_id in cams_in_date_data:
-            #    cam = cls.all_cams.get(cam_id)
-            #    if cam:
-            #        cam_dta = date_data[date_data.camera_id == cam.id]
-            #        cam.updateTrafficData(cam_dta)
-            #        cam.updateVolume(date.split(".")[0],cam_dta.shape[0])
-            #    else:
 
 
             progress = round((cnt / len(dates))*100,2)
@@ -131,13 +123,20 @@ class TrafficCam:
             else:
                 cam_id = int(row.cameraID)
 
+            if np.isnan(row.BID):
+                full_id = str(cam_id) + "-" + str(row.BID)
+            else:
+                full_id = str(cam_id) + "-" + str(int(row.BID))
+
             camera = TrafficCam(id=cam_id,
+                                full_id = full_id,
+                                loc_id = row.BID,
                                 intersection_name=row.intersectionName,
                                 deployed_date=row.YearMonth,
                                 coordinates=[row.Latitude,row.Longitude],
                                 direction=row.direction)
 
-            cls.all_cams[cam_id] = camera
+            cls.all_cams[full_id] = camera
         print("{} cameras found".format(len(cls.all_cams)))
 
 
@@ -176,6 +175,73 @@ class TrafficCam:
             RoadNode.allRoadsToPickle()
 
     @classmethod
+    def mapCamToRoads2(cls,save_pickle=False):
+        print("\nMapping cameras to roads...")
+        if not RoadNode.all_roads.keys():
+            RoadNode.init(dao=cls.dao)
+
+        lat_dist = GridCell.lat_cut_points[1] - GridCell.lat_cut_points[0]
+        lon_dist = GridCell.lon_cut_points[1] - GridCell.lon_cut_points[0]
+        n_camera = len(TrafficCam.all_cams)
+
+        cnt = 0
+        no_road = 0
+        for cam_id, camera in cls.all_cams.items():
+            cnt += 1
+
+            # map camera to cell
+            # search latitude
+            """if time_stamp.latitude >= lat_cut[0] and time_stamp.latitude <= lat_cut[-1:][0]:
+                lat_key = int((time_stamp.latitude - lat_cut[0]) // lat_dist)
+            # if lat_key >= len(lat_cut)-1:
+            #    lat_key = None
+            else:
+                lat_key = None"""
+            if camera.coordinates[0] >= GridCell.lat_cut_points[0] and camera.coordinates[0] <= GridCell.lat_cut_points[-1:][0]:
+                lat_key = int((camera.coordinates[0] - GridCell.lat_cut_points[0]) // lat_dist)
+            else:
+                lat_key = None
+
+            # search longitude
+            if camera.coordinates[1] >= GridCell.lon_cut_points[0] and camera.coordinates[1] <= GridCell.lon_cut_points[-1:][0]:
+                lon_key = int((camera.coordinates[1] - GridCell.lon_cut_points[0]) // lon_dist)
+            else:
+                lon_key = None
+
+            if lat_key is not None and lon_key is not None:
+                cell_id = GridCell.cell_coord_dict[(lat_key, lon_key)]
+                cell = GridCell.cell_id_dict[cell_id]
+
+                # go into cell - map cam to road
+                n_roads = len(cell.road_list)
+                dist = np.zeros(shape=n_roads)
+                road_ids = np.zeros(shape=n_roads, dtype=np.int32)
+                for i, road in enumerate(cell.road_list):
+
+                    road_ids[i] = road.node_id
+                    dist[i] = euclidean(camera.coordinates, RoadNode.all_roads[road.node_id].coordinates)
+
+                try:
+                    closest_road_idx = np.argmin(dist)  # find closest road index
+                    closest_road = RoadNode.all_roads[road_ids[closest_road_idx]]  # closest road
+                    closest_road.addCamera(new_cam=camera)  # append current camera to closest road's camera list
+                    camera.updateClosestRoad(road_ids[closest_road_idx])  # add camera id to cma
+                except:
+                    # TODO: Investigate why this happens: why some cameras are mapped to cells that contain no roads
+                    no_road += 1
+                    pass
+
+
+
+            progress = round((cnt / float(n_camera)) * 100, 2)
+
+            sys.stdout.write("\r Camera mapping progress: {}% complete".format(progress))
+            sys.stdout.flush()
+        if no_road > 0:
+            #raise Warning("{} of {} cameras in city range w/ no road assignment".format(no_road,n_camera))
+            pass
+
+    @classmethod
     def init(cls,dao,read_pickle):
         TrafficCam.setDao(dao=dao)
         if read_pickle:
@@ -186,7 +252,7 @@ class TrafficCam:
             TrafficCam.createAllCams()
             TrafficCam.getCameraTrafficData(save_pickle=True)
 
-        TrafficCam.mapCamToRoads()
+        TrafficCam.mapCamToRoads2()
 
 
 if __name__ == '__main__':
