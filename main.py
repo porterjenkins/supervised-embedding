@@ -4,6 +4,7 @@ from database_access import DatabaseAccess
 from grid import GridCell
 from camera import TrafficCam
 from model import Model
+from sklearn.model_selection import train_test_split
 
 import numpy as np
 
@@ -46,6 +47,7 @@ if __name__ == '__main__':
     dao = DatabaseAccess(city='jinan', data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
     initCity(dao=dao,trip_pickle=True,cam_pickle=True)
 
+
     # save matrices for xianfeng's code
     """fname = "/Users/porterjenkins/Documents/PENN STATE/RESEARCH/supervised-embedding/xianfeng/city-eye/data_back/"
     monitored_roads = RoadNode.getMonitoredRoads()
@@ -57,11 +59,14 @@ if __name__ == '__main__':
     transition = Trip.computeTransitionMatrices(hops=[5],l2_norm=False)
     np.savez(fname + "flows-porter.npz", flows = transition)"""
 
-    rawnodes = RoadNode.getNodeVolumeMatrix()
-    transition = Trip.computeTransitionMatrices(hops=[5], l2_norm=False)
-    #transition = RoadNode.getGraphSimilarityMtx(method='euclidean')
-    X, y = RoadNode.getRoadFeatures(similarity_matrix=transition)
+
+    #transition = Trip.computeTransitionMatrices(hops=[5], l2_norm=True)
+    transition = RoadNode.getGraphSimilarityMtx(method="euclidean")
+
+    X, y = RoadNode.getRoadFeatures(similarity_matrix=transition,n_ts=24)
+    train_idx, test_idx = train_test_split(range(len(y)))
+
     model_transition = Model(X=X,y=y,similarity_mtx=transition)
-    model_transition.regression(regression_method='OLS',T=24)
+    model_transition.regression(train_idx,test_idx)
 
 

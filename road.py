@@ -137,86 +137,19 @@ class RoadNode:
         RoadNode.createRoads()
 
     @classmethod
-    def getRoadFeatures(cls,similarity_matrix,n_date_times=24):
+    def getRoadFeatures(cls,similarity_matrix,n_ts=24):
         print("\nGetting road features...")
 
-        p = 1
-        n_roads = len(cls.all_roads)
-        y_mtx = np.zeros(shape=(n_roads,n_date_times))
-        #X = np.zeros(shape = (n_date_times,n_roads,p))
-        X = OrderedDict()
-        y = OrderedDict()
-        lanes = np.zeros(shape=(n_roads,n_date_times))
-        time_feature_list = list()
+        rawnodes = cls.getNodeVolumeMatrix(n_ts=n_ts)
 
-        for i, road in enumerate(cls.all_roads.values()):
-            volume = road.getCameraVolume()
-            if volume is not None:
-                y_mtx[i,:] = volume
-
-            #lanes[i,:] = np.array([road.lane_cnt] * n_date_times)
-
-
-
-
-        #W = np.zeros_like(similarity_matrix)
-        """for i, road in enumerate(cls.all_roads.values()):
-            # Hard threshold on W: only consider direct neighbors, else 0
-            #for j, neighbor in enumerate(road.adjacent_roads):
-            #    W[i,neighbor.node_id] = similarity_matrix[i,neighbor.node_id]
-
-            volume = road.getCameraVolume()
-            if volume is not None:
-                y[i,:] = volume
-
-            n_lanes_i = np.array([road.lane_cnt] * n_date_times)
-            lanes_list.append(n_lanes_i)
-
-            # insert indicators for time of day
-            time = np.array(range(1,n_date_times+1))
-            enc = OneHotEncoder()
-            time_mtx_i = enc.fit_transform(X=time.reshape(-1,1)).toarray()
-            time_feature_list.append(time_mtx_i)
-            
-
-        lane_vector = np.concatenate(lanes_list)
-        time_mtx = np.concatenate(time_feature_list,axis=0)
-
-        X_list = []
-        for j in range(n_date_times):
-            F_g_date = np.matmul(similarity_matrix, y[:,j])
-            X_list.append(F_g_date)
-            
-
-
-        F_g = np.concatenate(X_list)
-        # Concatenate F_g and lanes to get X
-        features = (lane_vector.reshape(-1,1),F_g.reshape(-1,1),time_mtx)
-        X = np.concatenate(features,axis=1)
-        y = y.flatten().reshape(-1,1)
-        """
-        for j in range(n_date_times):
-            X[j] = np.zeros(shape=(n_roads, p))
-            y[j] = np.zeros(shape=n_roads)
-            F_g_date = np.matmul(similarity_matrix, y_mtx[:, j])
-            X[j][:,0] = F_g_date
-            #X[j][:,1] = lanes[:,j]
-
-
-            # Remove samples where y_ij == 0 --> Treat 0 as missing value
-            keep_idx = np.where(y_mtx[:,j] > 0)
-            X[j] = X[j][keep_idx[0],:]
-            y[j] = y_mtx[keep_idx[0],j]
-
-
-
-
+        X = np.dot(similarity_matrix, rawnodes).flatten().reshape(-1, 1)
+        y = rawnodes.flatten()
 
         return X, y
 
     @classmethod
     def getGraphSimilarityMtx(cls,method='euclidean'):
-        print("Computing graph similarity")
+        print("\n Computing graph similarity")
         n_roads = len(cls.all_roads)
 
 

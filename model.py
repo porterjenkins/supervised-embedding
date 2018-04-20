@@ -57,7 +57,7 @@ class Model:
         print("test avg: rmse {0}, mape {1}.".format(rmse, mape))
         # ipdb.set_trace()
 
-    def regression(self, regression_method,T):
+    def regressionTemporal(self, regression_method,T):
         #y_pred = np.zeros(shape=self.edge_volume_mat.shape[0])
         #y_pred = np.zeros(self.edge_volume_mat[test_idx])
         y_pred = list()
@@ -80,10 +80,25 @@ class Model:
             y_pred.append(y_pred_t)
             y_test.append(y_test_t)
 
-
         y_pred = np.concatenate(y_pred)
         y_test = np.concatenate(y_test)
 
         rmse, mape = Model.eval(y_test, y_pred)
 
         print("test regression {2}: rmse {0}, mape {1}.".format(rmse, mape, regression_method))
+
+    def regression(self,train_idx,test_idx):
+
+
+        X_train = self.edge_feature_mat[train_idx, :]
+        y_train = self.edge_volume_mat[train_idx]
+        X_test = self.edge_feature_mat[test_idx, :]
+        y_test = self.edge_volume_mat[test_idx]
+
+        ols = LinearRegression()
+        ols.fit(X=X_train,y=y_train)
+
+        y_pred = ols.predict(X_test)
+        rmse, mape = Model.eval(y_test, y_pred)
+
+        print("test regression {2}: rmse {0}, mape {1}.".format(rmse, mape, 'OLS'))
