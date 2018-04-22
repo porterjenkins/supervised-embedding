@@ -65,16 +65,16 @@ class DatabaseAccess:
 
 
     def getEdgeList(self):
-        fname = self.road_dir + "/bigedges.txt"
+        fname = self.road_dir + "/xianfeng/jinan_edges.txt"
         return pd.read_csv(fname,
                            header=None,
                            names = ['node','adj_node'])
 
     def getNodeCoordinates(self):
-        fname = self.road_dir + "/bignodes.txt"
+        fname = self.road_dir + "/xianfeng/jinan_nodes.txt"
         return pd.read_csv(fname,
                            header = None,
-                           names = ['node','longitude','latitude'])
+                           names = ['node','long_id','latitude','longitude'])
 
     def getNodeLanes(self):
         fname = self.road_dir + "/bignode_lanes.txt"

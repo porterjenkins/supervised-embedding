@@ -1,6 +1,7 @@
 from database_access import DatabaseAccess
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
 
 
 
@@ -56,14 +57,48 @@ class Model:
         print("test avg: rmse {0}, mape {1}.".format(rmse, mape))
         # ipdb.set_trace()
 
-    def regression(self, train_idx, test_idx, regression_method):
+    def regressionTemporal(self, regression_method,T):
         #y_pred = np.zeros(shape=self.edge_volume_mat.shape[0])
         #y_pred = np.zeros(self.edge_volume_mat[test_idx])
-        #for t in range(self.edge_volume_mat.shape[1]):
-        #    if t % 100 is 0:
-                #print(t)
-        model = LinearRegression()
-        model.fit(self.edge_feature_mat[train_idx], self.edge_volume_mat[train_idx])
-        y_pred = model.predict(self.edge_feature_mat[test_idx])
-        rmse, mape = Model.eval(self.edge_volume_mat[test_idx], y_pred)
+        y_pred = list()
+        y_test = list()
+        for t in range(T):
+            n_samples_t = len(self.edge_volume_mat[t])
+            train_idx, test_idx = train_test_split(range(n_samples_t))
+
+            #X_train_t = self.edge_feature_mat[t][train_idx,0].reshape(-1,1)
+            X_train_t = self.edge_feature_mat[t][train_idx,:]
+            y_train_t = self.edge_volume_mat[t][train_idx]
+            #X_test_t = self.edge_feature_mat[t][test_idx,0].reshape(-1,1)
+            X_test_t = self.edge_feature_mat[t][test_idx,:]
+            y_test_t = self.edge_volume_mat[t][test_idx]
+            model = LinearRegression()
+            model.fit(X_train_t,y_train_t)
+            y_pred_t = model.predict(X_test_t)
+
+
+            y_pred.append(y_pred_t)
+            y_test.append(y_test_t)
+
+        y_pred = np.concatenate(y_pred)
+        y_test = np.concatenate(y_test)
+
+        rmse, mape = Model.eval(y_test, y_pred)
+
         print("test regression {2}: rmse {0}, mape {1}.".format(rmse, mape, regression_method))
+
+    def regression(self,train_idx,test_idx):
+
+
+        X_train = self.edge_feature_mat[train_idx, :]
+        y_train = self.edge_volume_mat[train_idx]
+        X_test = self.edge_feature_mat[test_idx, :]
+        y_test = self.edge_volume_mat[test_idx]
+
+        ols = LinearRegression()
+        ols.fit(X=X_train,y=y_train)
+
+        y_pred = ols.predict(X_test)
+        rmse, mape = Model.eval(y_test, y_pred)
+
+        print("test regression {2}: rmse {0}, mape {1}.".format(rmse, mape, 'OLS'))

@@ -49,7 +49,7 @@ class Trip:
     @classmethod
     def createAllTrips(cls,save_pickle=False):
         print("Creating trips...")
-        files = dao.getTrajFiles()
+        files = cls.dao.getTrajFiles()
         dates = list(files.keys())
         all_trips = []
         for date in dates:
@@ -137,10 +137,57 @@ class Trip:
         if save_pickle:
             cls.allTripsToPickle()
 
+    @classmethod
+    def mapTripToCell2(cls,coord_dict,lat_cut,lon_cut,save_pickle=False):
+        print(" - Mapping roads to cells")
+
+        lat_dist = lat_cut[1] - lat_cut[0]
+        lon_dist = lon_cut[1] - lon_cut[0]
+
+        trip_cnt = 0
+        for trip in Trip.all_trips:
+            trip_cnt += 1
+            cell_list = []
+            for time_stamp in trip.trajectory.itertuples():
+
+                # search latitude
+                # check if in window
+                if time_stamp.latitude >= lat_cut[0] and time_stamp.latitude <= lat_cut[-1:][0]:
+                    lat_key = int((time_stamp.latitude - lat_cut[0]) // lat_dist)
+                #if lat_key >= len(lat_cut)-1:
+                #    lat_key = None
+                else:
+                    lat_key = None
+
+
+                # search longitude
+                if time_stamp.longitude >= lon_cut[0] and time_stamp.longitude <= lon_cut[-1:][0]:
+                    lon_key = int((time_stamp.longitude - lon_cut[0]) // lon_dist)
+                #if lon_key >= len(lon_cut)-1:
+                #    lon_key = None
+                else:
+                    lon_key = None
+
+
+                if lat_key is not None and lon_key is not None:
+                    ts_cell = coord_dict[(lat_key, lon_key)]
+                    cell_list.append(ts_cell)
+                else:
+                    # either lat or lon measurement resides outside city window
+                    cell_list.append(np.nan)
+            trip.updateCellList(cell_list)
+            progress = round((trip_cnt / float(len(Trip.all_trips))) * 100, 2)
+
+            sys.stdout.write("\r Trip mapping progress: {}% of trips complete".format(progress))
+            sys.stdout.flush()
+        print(" - Complete...")
+        if save_pickle:
+            cls.allTripsToPickle()
+
 
     @classmethod
     def mapTripToRoads(cls,cell_dict,save_pickle=False):
-        print("Mapping trips to roads...")
+        print(" -Mapping trips to roads...")
         trip_cnt = 0
         n_trips = len(Trip.all_trips)
         for trip in Trip.all_trips:
@@ -167,6 +214,8 @@ class Trip:
             sys.stdout.write("\r Trip mapping progress: {}% of trips complete".format(progress))
             sys.stdout.flush()
 
+        print(" -Complete...")
+
         if save_pickle:
             cls.allTripsToPickle()
 
@@ -177,7 +226,8 @@ class Trip:
             Trip.getTripsPickle()
         else:
             Trip.createAllTrips(save_pickle=True)
-            Trip.mapTripToCell(coord_dict=GridCell.cell_coord_dict,
+            print("Mapping roads...")
+            Trip.mapTripToCell2(coord_dict=GridCell.cell_coord_dict,
                                lat_cut=GridCell.lat_cut_points,
                                lon_cut=GridCell.lon_cut_points,
                                save_pickle=True)
@@ -192,7 +242,7 @@ class Trip:
         :param hops: (list) hop lengths to try; i.e., [1,2,3,10]
         :return: (n-d array)
         """
-        print("Calculating transition matrices with hops: {}".format(hops))
+        print("\n Calculating transition matrices with hops: {}".format(hops))
         n_roads = len(RoadNode.all_roads)
 
         # initialize road tensor

@@ -20,7 +20,7 @@ class GridCell:
         self.id = id
         self.lat_range = lat_range
         self.lon_range = lon_range
-        self.road_list = None
+        self.road_list = list()
 
 
     def roadInCell(self,road):
@@ -75,7 +75,8 @@ class GridCell:
                                 lon_range=(cls.lon_cut_points[j],cls.lon_cut_points[j+1]))
 
                 cls.cell_id_dict[id_cnt] = cell
-                cls.cell_coord_dict[(cell.lat_range,cell.lon_range)] = cell.id
+                #cls.cell_coord_dict[(cell.lat_range,cell.lon_range)] = cell.id
+                cls.cell_coord_dict[(i,j)] = cell.id
                 id_cnt += 1
 
 
@@ -85,13 +86,31 @@ class GridCell:
         if not RoadNode.all_roads.keys():
             RoadNode.init(dao = cls.dao)
 
-        cells_w_road = 0
-        for cell in cls.cell_id_dict.values():
-            cell.getRoadsInCell()
-            if len(cell.road_list) > 0:
-                cells_w_road +=1
 
-        print("{} cells of {} contain roads".format(cells_w_road,len(cls.cell_id_dict)))
+        lat_dist = cls.lat_cut_points[1] - cls.lat_cut_points[0]
+        lon_dist = cls.lon_cut_points[1] - cls.lon_cut_points[0]
+
+
+        for id, road in RoadNode.all_roads.items():
+            # search latitude
+            lat_key = int((road.coordinates[0] - cls.lat_cut_points[0]) // lat_dist)
+
+            if lat_key >= len(cls.lat_cut_points):
+                lat_key = None
+
+            # search longitude
+            lon_key = int((road.coordinates[1] - cls.lon_cut_points[0]) // lon_dist)
+            if lon_key >= len(cls.lon_cut_points):
+                lon_key = None
+
+            if lat_key is not None and lon_key is not None:
+                cell_id = GridCell.cell_coord_dict[(lat_key,lon_key)]
+                road.updateGridCell(cell_id)
+
+                # append road ID to cell's road_list attribute
+                cls.cell_id_dict[cell_id].road_list.append(road)
+
+
 
     @classmethod
     def init(cls,dao):

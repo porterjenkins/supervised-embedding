@@ -3,12 +3,15 @@ from database_access import DatabaseAccess
 import numpy as np
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import OneHotEncoder
+from collections import deque, OrderedDict
+
 
 class RoadNode:
 
     # Class attributes
     all_roads = dict()
     dao = None
+    path = dict() # used for BFS search for shortest path
 
     def __init__(self,node_id,coordinates,adjacent_roads,lane_cnt):
         self.node_id = node_id
@@ -17,6 +20,7 @@ class RoadNode:
         self.lane_cnt = lane_cnt
         self.grid_cell = None
         self.cameras = list()
+        self.marked = False # used for BFS search for shortest path
 
     def __str__(self):
         return self.node_id
@@ -40,7 +44,7 @@ class RoadNode:
 
             if arr_list:
                 volume_matrix = np.concatenate(arr_list,axis=1)
-                volume = np.sum(volume_matrix,axis=1)
+                volume = np.max(volume_matrix,axis=1)
 
 
             else:
@@ -52,6 +56,23 @@ class RoadNode:
 
 
         return volume
+
+    @classmethod
+    def bfsSearch(cls,root):
+        # Breadth-first search (BFS)
+        q = deque()
+        root.marked = True
+        q.append(root)
+
+        while len(q) > 0:
+            r = q.pop()
+
+            for neighbor in r.adjacent_roads:
+                if not neighbor.marked:
+                    neighbor.marked = True
+                    q.append(neighbor)
+                    cls.path[neighbor.node_id] = r.node_id
+
 
 
 
@@ -90,7 +111,9 @@ class RoadNode:
 
         edges = cls.dao.getEdgeList()
         nodes = cls.dao.getNodeCoordinates()
-        lanes = cls.dao.getNodeLanes()
+        #lanes = cls.dao.getNodeLanes()
+        from pandas import DataFrame
+        lanes = DataFrame(np.ones(shape = (len(nodes),1)))
 
 
         for node in nodes.itertuples():
@@ -98,7 +121,7 @@ class RoadNode:
             adjacent_list = []
             for row in edge_list.itertuples():
                 adjacent_list.append(row.adj_node)
-            n_lanes_i = lanes.loc[row.node].values[0]
+                n_lanes_i = lanes.loc[row.node].values[0]
             road_i = RoadNode(node_id=node.node,
                                 coordinates=[node.latitude,node.longitude],
                                 adjacent_roads = adjacent_list,
@@ -114,89 +137,110 @@ class RoadNode:
         RoadNode.createRoads()
 
     @classmethod
-    def getRoadFeatures(cls,similarity_matrix,n_neighbors = 2):
+    def getRoadFeatures(cls,similarity_matrix,n_ts=24):
         print("\nGetting road features...")
 
-        n_roads = len(cls.all_roads)
-        n_date_times = 24
-        y = np.zeros(shape=(n_roads,n_date_times))
-        lanes_list = list()
-        time_feature_list = list()
+        rawnodes = cls.getNodeVolumeMatrix(n_ts=n_ts)
 
-
-        W = np.zeros_like(similarity_matrix)
-        for i, road in enumerate(cls.all_roads.values()):
-            for j, neighbor in enumerate(road.adjacent_roads):
-                W[i,neighbor.node_id] = similarity_matrix[i,neighbor.node_id]
-
-            volume = road.getCameraVolume()
-            if volume is not None:
-                y[i,:] = volume
-
-            n_lanes_i = np.array([road.lane_cnt] * n_date_times)
-            lanes_list.append(n_lanes_i)
-
-            # insert indicators for time of day
-            time = np.array(range(1,n_date_times+1))
-            enc = OneHotEncoder()
-            time_mtx_i = enc.fit_transform(X=time.reshape(-1,1)).toarray()
-            time_feature_list.append(time_mtx_i)
-
-
-        lane_vector = np.concatenate(lanes_list)
-        time_mtx = np.concatenate(time_feature_list,axis=0)
-
-        X_list = []
-        for j in range(n_date_times):
-            F_g_date = np.matmul(W, y[:,j])
-            X_list.append(F_g_date)
-
-        F_g = np.concatenate(X_list)
-        # Concatenate F_g and lanes to get X
-        features = (lane_vector.reshape(-1,1),F_g.reshape(-1,1),time_mtx)
-        X = np.concatenate(features,axis=1)
-        y = y.flatten().reshape(-1,1)
-
+        X = np.dot(similarity_matrix, rawnodes).flatten().reshape(-1, 1)
+        y = rawnodes.flatten()
 
         return X, y
 
     @classmethod
-    def getGraphSimilarityMtx(cls):
-        print("Computing graph similarity")
+    def getGraphSimilarityMtx(cls,method='euclidean'):
+        print("\n Computing graph similarity")
         n_roads = len(cls.all_roads)
+
+
         similarity_mtx = np.zeros(shape = (n_roads,n_roads))
 
-        """cnt = 0
-        for i, road_i in cls.all_roads.items():
-            for j, road_j in cls.all_roads.items():
-                cnt += 1
-                if i !=j:
-                    similarity_mtx[i,j] = 1/(euclidean(road_i.coordinates,road_j.coordinates))
-                else:
-                    similarity_mtx[i, j] = 1
+        if method == 'euclidean':
+            cnt = 0
+            i = 0
+            while i < n_roads:
+                j = i + 1
+                road_i = cls.all_roads[i]
+                while j < n_roads:
+                    road_j = cls.all_roads[j]
+                    similarity_mtx[i, j] = 1 / (euclidean(road_i.coordinates, road_j.coordinates))
+                    j += 1
 
-                progress = round((cnt / float(n_roads**2)) * 100, 2)
+                i += 1
 
-                sys.stdout.write("\r Getting graph similarity matrix: {}% complete".format(progress))
-                sys.stdout.flush()
-                """
+            mtx_t = np.transpose(similarity_mtx)
+            similarity_mtx = similarity_mtx + mtx_t
+        elif method == 'shortest_path':
+            root = cls.all_roads[0]
+            cls.bfsSearch(root)
 
-        cnt = 0
-        i = 0
-        while i < n_roads:
-            j = i + 1
-            road_i = cls.all_roads[i]
-            while j < n_roads:
-                road_j = cls.all_roads[j]
-                similarity_mtx[i, j] = 1 / (euclidean(road_i.coordinates, road_j.coordinates))
-                j += 1
+            #shortest_path
+            s = cls.all_roads[0]
+            w = cls.all_roads[5]
+            path = []
 
-            i += 1
+            current_node = w
+            parent_node = cls.path[w.neighbor.node_id]
 
-        mtx_t = np.transpose(similarity_mtx)
-        similarity_mtx = similarity_mtx + mtx_t
+            while current_node.node_id !=  parent_node.node_id:
+                current_node = parent_node
+                parent_node = cls.path[current_node.node_id]
+                path.append(current_node)
+
+
+        else:
+            raise Exception("Method must be a member of ['euclidean','shortest_path']")
 
         return similarity_mtx
+
+    @classmethod
+    def getNodeVolumeMatrix(cls,n_ts=24):
+
+        n_roads = len(cls.all_roads)
+
+        node_mtx = np.zeros(shape = (n_roads,n_ts))
+
+        for id, road in cls.all_roads.items():
+            if road.cameras:
+                tmp = 0
+            volume = road.getCameraVolume()
+            if volume is not None:
+                node_mtx[id,:] = volume
+
+
+        return node_mtx
+
+    @classmethod
+    def getAdjacencyMatrix(cls,tensor):
+
+        n_roads = len(cls.all_roads)
+        if tensor:
+            A = np.zeros(shape=(1,n_roads,n_roads))
+        else:
+            A = np.zeros(shape=(n_roads, n_roads))
+
+        for i, road_i in cls.all_roads.items():
+            for road_j in road_i.adjacent_roads:
+                j = road_j.node_id
+                if tensor:
+                    A[0,i,j] = 1
+                else:
+                    A[i,j] = 1
+
+        return A
+
+    @classmethod
+    def getMonitoredRoads(cls):
+        roads_w_cam = list()
+        for i, road in cls.all_roads.items():
+            if road.cameras:
+                roads_w_cam.append(i)
+
+        return np.array(roads_w_cam)
+
+
+
+
 
 
 
@@ -207,4 +251,3 @@ if __name__ == '__main__':
     dao = DatabaseAccess(city='jinan', data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
     RoadNode.setDao(dao)
     RoadNode.createRoads()
-    RoadNode.getRoadFeatureMatrix()
