@@ -60,10 +60,10 @@ if __name__ == '__main__':
     np.savez(fname + "flows-porter.npz", flows = transition)"""
 
 
-    #transition = Trip.computeTransitionMatrices(hops=[5], l2_norm=True)
+    #transition = Trip.computeTransitionMatrices(hops=[10], l2_norm=True)
     transition = RoadNode.getGraphSimilarityMtx(method="euclidean")
 
-    X, y = RoadNode.getRoadFeatures(similarity_matrix=transition,n_ts=24)
+    X, y = RoadNode.getRoadFeatures(similarity_matrix=transition,n_ts=24,filter_neighbors=False)
     train_idx, test_idx = train_test_split(range(len(y)))
 
     model_transition = Model(X=X,y=y,similarity_mtx=transition)

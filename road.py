@@ -137,8 +137,16 @@ class RoadNode:
         RoadNode.createRoads()
 
     @classmethod
-    def getRoadFeatures(cls,similarity_matrix,n_ts=24):
+    def getRoadFeatures(cls,similarity_matrix,n_ts=24,filter_neighbors=True):
         print("\nGetting road features...")
+
+        # filter similarity matrix: set non-adjacent elements equal to 0
+        if filter_neighbors:
+            sim_mtx_neighbors_only = np.zeros_like(similarity_matrix)
+            for i, road_i in RoadNode.all_roads.items():
+                for road_j in road_i.adjacent_roads:
+                    sim_mtx_neighbors_only[i,road_j.node_id] = similarity_matrix[i,road_j.node_id]
+            similarity_matrix = sim_mtx_neighbors_only
 
         rawnodes = cls.getNodeVolumeMatrix(n_ts=n_ts)
 
