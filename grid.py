@@ -54,9 +54,14 @@ class GridCell:
 
     @classmethod
     def getCityWindow(cls):
-        roads = cls.dao.getNodeCoordinates()
-        cls.lat_range_city = (roads.latitude.min(),roads.latitude.max() + .00001)
-        cls.lon_range_city = (roads.longitude.min(), roads.longitude.max() + .00001)
+
+        if cls.dao.lat_range is None and cls.dao.lon_range is None:
+            roads = cls.dao.getNodeCoordinates()
+            cls.lat_range_city = (roads.latitude.min(),roads.latitude.max() + .00001)
+            cls.lon_range_city = (roads.longitude.min(), roads.longitude.max() + .00001)
+        else:
+            cls.lat_range_city = cls.dao.lat_range
+            cls.lon_range_city = cls.dao.lon_range
 
 
     @classmethod
@@ -115,7 +120,7 @@ class GridCell:
     @classmethod
     def init(cls,dao):
         GridCell.setDao(dao)
-        GridCell.initAllCells(n_grids=20)
+        GridCell.initAllCells(n_grids=5)
         GridCell.mapRoadsToCell()
 
 

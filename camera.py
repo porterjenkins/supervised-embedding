@@ -48,13 +48,13 @@ class TrafficCam:
 
     @classmethod
     def allCamsToPickle(cls):
-        fname = cls.dao.cam_dir + "/pickle/all_cams.p"
-        pickle.dump(cls.all_cams, open(fname, 'wb'))
+        fname = cls.dao.cam_dir + "/pickle/all_cams_small.p"
+        pickle.dump(cls.all_cams, open(fname, 'wb'),protocol=2)
 
     @classmethod
     def getCamsPickle(cls):
         print("Retrieving cameras from pickle...")
-        fname = cls.dao.cam_dir + "/pickle/all_cams.p"
+        fname = cls.dao.cam_dir + "/pickle/all_cams_small.p"
         cls.all_cams = pickle.load(open(fname,'rb' ))
         print("{} cameras found".format(len(cls.all_cams)))
 

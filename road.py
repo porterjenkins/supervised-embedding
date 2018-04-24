@@ -12,6 +12,8 @@ class RoadNode:
     all_roads = dict()
     dao = None
     path = dict() # used for BFS search for shortest path
+    node_to_mtx_idx = dict()
+    mtx_idx_to_node = dict()
 
     def __init__(self,node_id,coordinates,adjacent_roads,lane_cnt):
         self.node_id = node_id
@@ -57,6 +59,22 @@ class RoadNode:
 
         return volume
 
+    def latInRange(self,lat_min,lat_max):
+        lat = self.coordinates[0]
+
+        if lat >= lat_min and lat <= lat_max:
+            return True
+        else:
+            return False
+
+    def lonInRange(self,lon_min,lon_max):
+        lon = self.coordinates[1]
+
+        if lon >= lon_min and lon <= lon_max:
+            return True
+        else:
+            return False
+
     @classmethod
     def bfsSearch(cls,root):
         # Breadth-first search (BFS)
@@ -99,8 +117,12 @@ class RoadNode:
         for road in all_roads.values():
             adj_list_new = []
             for adj_road in road.adjacent_roads:
-                tmp = all_roads[adj_road]
-                adj_list_new.append(tmp)
+                try:
+                    tmp = all_roads[adj_road]
+                    adj_list_new.append(tmp)
+                except KeyError:
+                    # If adjacent road is not in all_roads dict, do not append to list
+                    pass
             road.updateAdjacencyList(adj_list_new)
             all_roads_new[road.node_id] = road
         return all_roads_new
@@ -126,8 +148,22 @@ class RoadNode:
                                 coordinates=[node.latitude,node.longitude],
                                 adjacent_roads = adjacent_list,
                                 lane_cnt= n_lanes_i)
-            cls.all_roads[node.node] = road_i
+
+
+            if cls.dao.lat_range is not None and cls.dao.lon_range is not None:
+                # city range is given, filter to those road segments within range
+                if road_i.latInRange(cls.dao.lat_range[0],cls.dao.lat_range[1]) and road_i.lonInRange(cls.dao.lon_range[0],cls.dao.lon_range[1]):
+                    cls.all_roads[node.node] = road_i
+                else:
+                    pass
+
+            else:
+                # otherwise use all road segments from file
+                cls.all_roads[node.node] = road_i
+
         cls.all_roads = cls.updateAllAdjacencies(cls.all_roads)
+        cls.node_to_mtx_idx = dict(zip(cls.all_roads.keys(), range(len(cls.all_roads))))
+        cls.mtx_idx_to_node =  dict(zip(range(len(cls.all_roads)),cls.all_roads.keys()))
         print("{} roads found".format(len(cls.all_roads)))
 
 
@@ -168,10 +204,10 @@ class RoadNode:
             i = 0
             while i < n_roads:
                 j = i + 1
-                road_i = cls.all_roads[i]
+                road_i = cls.all_roads[cls.mtx_idx_to_node[i]]
                 while j < n_roads:
-                    road_j = cls.all_roads[j]
-                    similarity_mtx[i, j] = 1 / (euclidean(road_i.coordinates, road_j.coordinates))
+                    road_j = cls.all_roads[cls.mtx_idx_to_node[j]]
+                    similarity_mtx[i, j] = 1 / (euclidean(road_i.coordinates, road_j.coordinates))**2
                     j += 1
 
                 i += 1
@@ -213,7 +249,7 @@ class RoadNode:
                 tmp = 0
             volume = road.getCameraVolume()
             if volume is not None:
-                node_mtx[id,:] = volume
+                node_mtx[cls.node_to_mtx_idx[id],:] = volume
 
 
         return node_mtx
