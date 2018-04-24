@@ -12,7 +12,7 @@ import math
 import numpy as np
 import tensorflow as tf
 from trip import Trip
-
+from database_access import DatabaseAccess
 
 
 def generate_batch(trips, batch_size, num_skips, skip_window, cur_trip=0, cur_road=0):
@@ -78,16 +78,17 @@ def generate_batch(trips, batch_size, num_skips, skip_window, cur_trip=0, cur_ro
 
 
 if __name__ == "__main__":
+    dao = DatabaseAccess(city='', data_dir="data")
+    Trip.setDao(dao)
     Trip.getTripsPickle()
     trips = [] # use road ID sequence to represent trips
     for t in Trip.all_trips:
         trips.append(t.trajectory["road_node"])
     
     # calculate number of road segments (TODO: improve efficiency)
-    num_segments = len(np.unique([t for t in trips])
+    num_segments = len(np.unique([t for t in trips]))
     
     # Build and train a skip-gram model
-    
     batch_size = 64
     embedding_size = 64
     skip_window = 1
@@ -154,7 +155,7 @@ if __name__ == "__main__":
         next_avaliable = True
         steps = 0
         while next_avaliable:
-            batch_inputs, batch_labels, cur_trip, cur_road, next_avaliable
+            batch_inputs, batch_labels, cur_trip, cur_road, next_avaliable  \
                     = generate_batch(trips, batch_size, num_skips, 
                                      skip_window, cur_trip, cur_road)
             steps += 1
@@ -173,7 +174,7 @@ if __name__ == "__main__":
 
             if steps % 1000 == 0:
                average_loss /= 1000
-               print "average loss at step", steps, ":", average_loss)
+               print("average loss at step", steps, ":", average_loss)
                average_loss = 0
         
         final_embeddings = normalized_embeddings.eval()
