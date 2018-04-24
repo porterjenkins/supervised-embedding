@@ -53,9 +53,10 @@ def generate_batch(trips, batch_size, num_skips, skip_window, cur_trip=0, cur_ro
             if i == batch_size:
                 break
         if next_in >= len(trips[cur_trip]): # buffer contains incomplete previous trips
-            buf.popleft()
-            cur_road += 1
-            if len(buf) == 1:
+            if len(buf) > 1:
+                buf.popleft()
+                cur_road += 1
+            if len(buf) <= 1:
                 # add next trip to buffer
                 buf.clear()
                 cur_trip += 1
@@ -91,11 +92,11 @@ if __name__ == "__main__":
     num_segments = 1 + max(np.unique([r for t in trips for r in t]))
     
     # Build and train a skip-gram model
-    batch_size = 64
-    embedding_size = 64
+    batch_size = 32
+    embedding_size = 50
     skip_window = 1
     num_skips = 2
-    num_sampled = 32
+    num_sampled = 16
     
     graph = tf.Graph()
     with graph.as_default():
@@ -130,12 +131,16 @@ if __name__ == "__main__":
                             num_classes=num_segments
                             ))
         tf.summary.scalar("loss", loss)
+        tf.summary.histogram("wegiths", nce_weights)
+        tf.summary.histogram("biases", nce_biases)
         
         with tf.name_scope("optimizer"):
             optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(loss)
 
         norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
         normalized_embeddings = embeddings / norm
+        
+        tf.summary.histogram("embedding_norms", norm)
         
         merged = tf.summary.merge_all()
         
@@ -147,7 +152,7 @@ if __name__ == "__main__":
     
     num_steps = 10000
     with tf.Session(graph=graph) as session:
-        writer = tf.summary.FileWriter("/tmp/unsupervised-embedding.log", session.graph)
+        writer = tf.summary.FileWriter("/tmp/unsupervised-embedding", session.graph)
         
         init.run()
         
