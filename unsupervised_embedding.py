@@ -83,10 +83,12 @@ if __name__ == "__main__":
     Trip.getTripsPickle()
     trips = [] # use road ID sequence to represent trips
     for t in Trip.all_trips:
-        trips.append(t.trajectory["road_node"])
+        trips.append(t.trajectory["road_node"].apply(
+            lambda x: 2693 if np.isnan(x) else int(x)).tolist())
+        # missing road segments is mapped to the largest index 2693
     
     # calculate number of road segments (TODO: improve efficiency)
-    num_segments = len(np.unique([t for t in trips]))
+    num_segments = 1 + max(np.unique([r for t in trips for r in t]))
     
     # Build and train a skip-gram model
     batch_size = 64
@@ -164,9 +166,9 @@ if __name__ == "__main__":
             
             run_metadata = tf.RunMetadata()
 
-            _, summary, los_val = session.run(
+            _, summary, loss_val = session.run(
                     [optimizer, merged, loss],
-                    feed_dic=feed_dict,
+                    feed_dict=feed_dict,
                     run_metadata=run_metadata)
             average_loss += loss_val
 

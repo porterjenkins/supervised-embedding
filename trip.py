@@ -7,7 +7,7 @@ from scipy.spatial.distance import euclidean
 import sys
 from sklearn.preprocessing import normalize
 
-class Trip:
+class Trip(object):
 
     # class attributes
     all_trips = None
