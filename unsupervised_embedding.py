@@ -85,7 +85,7 @@ def prepare_data(trips):
     road_counts = dict(collections.Counter(_single_list))
     roadID_to_seqID = dict()
     for road, cnt in road_counts.items():
-        roadID_to_seqID[road] = len(roadID_to_seqID) - 1
+        roadID_to_seqID[road] = len(roadID_to_seqID)
     
     trips_new = []
     for trip in trips:
@@ -102,18 +102,18 @@ if __name__ == "__main__":
     dao = DatabaseAccess(city='', data_dir="data")
     Trip.setDao(dao)
     Trip.getTripsPickle()
-    trips = [] # use road ID sequence to represent trips
+    trips_raw = [] # use road ID sequence to represent trips
     for t in Trip.all_trips:
-        trips.append(t.trajectory["road_node"].apply(
+        trips_raw.append(t.trajectory["road_node"].apply(
             lambda x: -1 if np.isnan(x) else int(x)).tolist())
         # missing road segments is mapped to -1
     
     # calculate number of road segments (TODO: improve efficiency)
-    trips, num_segments, road_seq, seq_road = prepare_data(trips)
+    trips, num_segments, road_seq, seq_road = prepare_data(trips_raw)
     
     # Build and train a skip-gram model
     batch_size = 32
-    embedding_size = 100
+    embedding_size = 100 
     skip_window = 1
     num_skips = 2
     num_sampled = 16
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
         with tf.name_scope("optimizer"):
             optimizer = tf.contrib.layers.optimize_loss(
-                    loss, global_step, learning_rate=0.1, optimizer="SGD", 
+                    loss, global_step, learning_rate=0.001, optimizer="Adam", 
                     summaries=["gradients"])
             
             
@@ -220,4 +220,9 @@ if __name__ == "__main__":
 
         writer.close()
         
-        pickle.dump(final_embeddings, open("road_embedding.pickle", "w"))
+    with open("road_embedding.pickle", "w") as fout:
+        pickle.dump(final_embeddings, fout)
+        pickle.dump(road_seq, fout)
+        pickle.dump(seq_road, fout)
+
+
