@@ -78,7 +78,24 @@ def generate_batch(trips, batch_size, num_skips, skip_window, cur_trip=0, cur_ro
             cur_road += 1
             next_in += 1
     return batch, labels, cur_trip, cur_road, next_available
-                    
+
+
+def prepare_data(trips):
+    _single_list = [r for t in trips for r in t]
+    road_counts = dict(collections.Counter(_single_list))
+    roadID_to_seqID = dict()
+    for road, cnt in road_counts.items():
+        roadID_to_seqID[road] = len(roadID_to_seqID) - 1
+    
+    trips_new = []
+    for trip in trips:
+        trip_new = []
+        for road_id in trip:
+            trip_new.append(roadID_to_seqID[road_id])
+        trips_new.append(trip_new)
+    
+    seqID_to_roadID = dict(zip(roadID_to_seqID.values(), roadID_to_seqID.keys()))
+    return trips_new, len(roadID_to_seqID), roadID_to_seqID, seqID_to_roadID
 
 
 if __name__ == "__main__":
@@ -88,11 +105,11 @@ if __name__ == "__main__":
     trips = [] # use road ID sequence to represent trips
     for t in Trip.all_trips:
         trips.append(t.trajectory["road_node"].apply(
-            lambda x: 2693 if np.isnan(x) else int(x)).tolist())
-        # missing road segments is mapped to the largest index 2693
+            lambda x: -1 if np.isnan(x) else int(x)).tolist())
+        # missing road segments is mapped to -1
     
     # calculate number of road segments (TODO: improve efficiency)
-    num_segments = 1 + max(np.unique([r for t in trips for r in t]))
+    trips, num_segments, road_seq, seq_road = prepare_data(trips)
     
     # Build and train a skip-gram model
     batch_size = 32
