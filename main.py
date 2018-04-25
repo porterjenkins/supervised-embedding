@@ -5,6 +5,7 @@ from grid import GridCell
 from camera import TrafficCam
 from model import Model
 from sklearn.model_selection import train_test_split
+import numpy as np
 
 import numpy as np
 
@@ -44,7 +45,11 @@ def initCity(dao,trip_pickle = True,cam_pickle=True):
 
 if __name__ == '__main__':
     # Initialize DatabaseAcessObject (dao)
-    dao = DatabaseAccess(city='jinan', data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
+    dao = DatabaseAccess(city='jinan',
+                         data_dir="/Volumes/Porter's Data/penn-state/data-sets/",
+                         lat_range= (36.6467,36.6738), # filter city to smaller window
+                         lon_range= (116.9673,117.0286))
+
     initCity(dao=dao,trip_pickle=True,cam_pickle=True)
 
 
@@ -60,10 +65,11 @@ if __name__ == '__main__':
     np.savez(fname + "flows-porter.npz", flows = transition)"""
 
 
-    #transition = Trip.computeTransitionMatrices(hops=[10], l2_norm=True)
+    #transition = Trip.computeTransitionMatrices(range(1,26), l2_norm=True)
     transition = RoadNode.getGraphSimilarityMtx(method="euclidean")
 
     X, y = RoadNode.getRoadFeatures(similarity_matrix=transition,n_ts=24,filter_neighbors=False)
+    np.random.seed(123)
     train_idx, test_idx = train_test_split(range(len(y)))
 
     model_transition = Model(X=X,y=y,similarity_mtx=transition)

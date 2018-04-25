@@ -43,8 +43,8 @@ class Trip(object):
 
     @classmethod
     def allTripsToPickle(cls):
-        fname = cls.dao.traj_dir + "/pickle/all_trajectory.p"
-        pickle.dump(cls.all_trips, open(fname, 'wb'))
+        fname = cls.dao.traj_dir + "/pickle/all_trajectory_small.p"
+        pickle.dump(cls.all_trips, open(fname, 'wb'),protocol=2)
 
     @classmethod
     def createAllTrips(cls,save_pickle=False):
@@ -71,7 +71,7 @@ class Trip(object):
     @classmethod
     def getTripsPickle(cls):
         print("Retrieving trips from pickle...")
-        fname = cls.dao.traj_dir + "/pickle/all_trajectory.p"
+        fname = cls.dao.traj_dir + "/pickle/all_trajectory_small.p"
         all_trips = pickle.load(open(fname,'rb' ))
         cls.all_trips = all_trips
         print("{} trips found".format(len(cls.all_trips)))
@@ -152,22 +152,19 @@ class Trip(object):
 
                 # search latitude
                 # check if in window
-                if time_stamp.latitude >= lat_cut[0] and time_stamp.latitude <= lat_cut[-1:][0]:
+                if time_stamp.latitude >= lat_cut[0] and time_stamp.latitude < lat_cut[-1:][0]:
                     lat_key = int((time_stamp.latitude - lat_cut[0]) // lat_dist)
-                #if lat_key >= len(lat_cut)-1:
-                #    lat_key = None
+
                 else:
                     lat_key = None
 
 
                 # search longitude
-                if time_stamp.longitude >= lon_cut[0] and time_stamp.longitude <= lon_cut[-1:][0]:
+                if time_stamp.longitude >= lon_cut[0] and time_stamp.longitude < lon_cut[-1:][0]:
                     lon_key = int((time_stamp.longitude - lon_cut[0]) // lon_dist)
-                #if lon_key >= len(lon_cut)-1:
-                #    lon_key = None
+
                 else:
                     lon_key = None
-
 
                 if lat_key is not None and lon_key is not None:
                     ts_cell = coord_dict[(lat_key, lon_key)]
@@ -263,9 +260,11 @@ class Trip(object):
                         try:
                             start_road = int(roads_unique[road_idx])
                             end_road = int(roads_unique[road_idx + hop_length])
-                            transition[hop_cnt - 1, start_road-1, end_road-1] += 1
+                            transition[hop_cnt, RoadNode.node_to_mtx_idx[start_road], RoadNode.node_to_mtx_idx[end_road]] += 1
                         except ValueError:
+                            # Allow function to be robust to the hop length...
                             pass
+
 
                     hop_cnt +=1
 

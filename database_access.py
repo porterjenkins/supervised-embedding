@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 class DatabaseAccess:
 
-    def __init__(self,city,data_dir=None):
+    def __init__(self,city,data_dir=None,lat_range = None, lon_range = None):
         self.city = city.lower()
         if data_dir is None:
             self.data_dir = os.getcwd() +"/data/"+ self.city
@@ -15,6 +15,8 @@ class DatabaseAccess:
         self.traj_dir = self.data_dir + "/trajectory"
         self.cam_dir = self.data_dir + "/street-cam"
         self.road_dir = self.data_dir + "/road-network"
+        self.lat_range = lat_range
+        self.lon_range = lon_range
 
 
 
