@@ -7,6 +7,7 @@ Generate embedding with word2vec
 """
 
 import collections
+import pickle
 import random
 import math
 import numpy as np
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     
     # Build and train a skip-gram model
     batch_size = 32
-    embedding_size = 50
+    embedding_size = 100
     skip_window = 1
     num_skips = 2
     num_sampled = 16
@@ -145,7 +146,7 @@ if __name__ == "__main__":
 
         with tf.name_scope("optimizer"):
             optimizer = tf.contrib.layers.optimize_loss(
-                    loss, global_step, learning_rate=0.5, optimizer="SGD", 
+                    loss, global_step, learning_rate=0.1, optimizer="SGD", 
                     summaries=["gradients"])
             
             
@@ -198,6 +199,8 @@ if __name__ == "__main__":
         
         final_embeddings = normalized_embeddings.eval()
         
-        saver.save(session, "model.ckpt")
+        saver.save(session, "./model.ckpt")
 
         writer.close()
+        
+        pickle.dump(final_embeddings, open("road_embedding.pickle", "w"))
