@@ -13,7 +13,9 @@ import numpy as np
 import tensorflow as tf
 from trip import Trip
 from database_access import DatabaseAccess
-
+from tensorflow.python.ops import variable_scope
+from tensorflow.python.framework import dtypes
+from tensorflow.python.ops import init_ops
 
 def generate_batch(trips, batch_size, num_skips, skip_window, cur_trip=0, cur_road=0):
     """
@@ -134,9 +136,19 @@ if __name__ == "__main__":
         tf.summary.histogram("wegiths", nce_weights)
         tf.summary.histogram("biases", nce_biases)
         
-        with tf.name_scope("optimizer"):
-            optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(loss)
+        
+        global_step = variable_scope.get_variable(  # this needs to be defined for tf.contrib.layers.optimize_loss()
+              "global_step", [],
+              trainable=False,
+              dtype=dtypes.int64,
+              initializer=init_ops.constant_initializer(0, dtype=dtypes.int64))
 
+        with tf.name_scope("optimizer"):
+            optimizer = tf.contrib.layers.optimize_loss(
+                    loss, global_step, learning_rate=0.5, optimizer="SGD", 
+                    summaries=["gradients"])
+            
+            
         norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
         normalized_embeddings = embeddings / norm
         
@@ -150,7 +162,7 @@ if __name__ == "__main__":
     
     # Begin training
     
-    num_steps = 10000
+    num_steps = 5000
     with tf.Session(graph=graph) as session:
         writer = tf.summary.FileWriter("/tmp/unsupervised-embedding", session.graph)
         
@@ -179,8 +191,8 @@ if __name__ == "__main__":
 
             writer.add_summary(summary, steps)
 
-            if steps % 1000 == 0:
-               average_loss /= 1000
+            if steps % num_steps == 0:
+               average_loss /= num_steps
                print("average loss at step", steps, ":", average_loss)
                average_loss = 0
         
