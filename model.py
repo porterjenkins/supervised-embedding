@@ -2,17 +2,19 @@ from database_access import DatabaseAccess
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
 
 
 
 class Model:
 
-    def __init__(self,X,y,similarity_mtx,n_ts,n_road):
+    def __init__(self,X,y,similarity_mtx,n_ts,n_road,monitored_roads):
         self.edge_feature_mat = X
         self.edge_volume_mat = y
         self.similarity_mtx = similarity_mtx
         self.n_ts = n_ts
         self.n_road = n_road
+        self.monitored_roads = monitored_roads
 
     @staticmethod
     def takeTopK(similarity_mtx,k=5):
@@ -31,16 +33,33 @@ class Model:
 
 
 
-    def testTrainSplit(self,test_pct, monitored_roads,set_seed):
+    def testTrainSplit(self,test_pct,set_seed):
         idx_all = np.array(range(len(self.edge_volume_mat)))
         road_split = np.split(idx_all,self.n_road)
 
-        n_test = int(len(monitored_roads) * test_pct)
+        n_test = int(len(self.monitored_roads) * test_pct)
         np.random.seed(set_seed)
-        test_roads = np.random.permutation(monitored_roads)[:n_test]
+        test_roads = np.random.permutation(self.monitored_roads)[:n_test]
         test_idx = np.concatenate([road_split[i] for i in test_roads])
         train_idx = np.setxor1d(idx_all,test_idx)
         return train_idx, test_idx
+
+
+    def getKFolds(self,n_split,rand_seed):
+        idx_all = np.array(range(len(self.edge_volume_mat)))
+        road_split = np.split(idx_all, self.n_road)
+
+        k_fold = KFold(n_splits=n_split,shuffle=True,random_state=rand_seed)
+        folds = list()
+        for _, test_idx in k_fold.split(self.monitored_roads):
+            test_roads = self.monitored_roads[test_idx]
+            test_samples = np.concatenate([road_split[i] for i in test_roads])
+            train_samples = np.setxor1d(idx_all,test_samples)
+            folds.append((train_samples,test_samples))
+
+        return folds
+
+
 
     @staticmethod
     def eval(y, y_pred, thre = 5):
@@ -117,7 +136,7 @@ class Model:
 
         print("test regression {2}: rmse {0}, mape {1}.".format(rmse, mape, regression_method))
 
-    def regression(self,train_idx,test_idx):
+    def regression(self,train_idx, test_idx):
 
 
 
@@ -133,3 +152,31 @@ class Model:
         rmse, mape = Model.eval(y_test, y_pred)
 
         print("test regression {:s}: rmse {:.4f}, mape {:.4f}.".format('OLS',rmse, mape))
+
+    def regressionCV(self,n_splits,rand_seed):
+
+        folds = self.getKFolds(n_split=n_splits,rand_seed=rand_seed)
+
+        errors = {'rmse':[],'mape':[]}
+
+        for train_idx, test_idx in folds:
+            X_train = self.edge_feature_mat[train_idx, :]
+            y_train = self.edge_volume_mat[train_idx]
+            X_test = self.edge_feature_mat[test_idx, :]
+            y_test = self.edge_volume_mat[test_idx]
+
+            ols = LinearRegression()
+            ols.fit(X=X_train, y=y_train)
+
+            y_pred = ols.predict(X_test)
+            rmse, mape = Model.eval(y_test, y_pred)
+
+            errors['rmse'].append(rmse)
+            errors['mape'].append(mape)
+
+        rmse_mean = np.mean(errors['rmse'])
+        rmse_std = np.std(errors['rmse'])
+        mape_mean = np.mean(errors['mape'])
+        mape_std = np.std(errors['mape'])
+
+        print("test regression {:s} - {}-fold CV : rmse {:.4f} ({:.2f}), mape {:.4f} ({:.2f}).".format('OLS',n_splits, rmse_mean,rmse_std, mape_mean,mape_std))

@@ -72,17 +72,20 @@ if __name__ == '__main__':
 
 
 
-    #sim_mtx = RoadNode.getEmbeddingSimilarity("road_embedding_50.pickle",l2_norm=True)
-    #sim_mtx = RoadNode.getGraphSimilarityMtx(method="euclidean")
-    sim_mtx = Trip.computeTransitionMatrices([1], l2_norm=True)
+    #sim_mtx = RoadNode.getEmbeddingSimilarity("road_embedding_100.pickle",l2_norm=True)
+    sim_mtx = RoadNode.getGraphSimilarityMtx(method="euclidean")
+    #sim_mtx = Trip.computeTransitionMatrices(range(1,26), l2_norm=True)
 
     #sim_mtx = Model.takeTopK(sim_mtx,k=5)
 
     X, y = RoadNode.getRoadFeatures(similarity_matrix=sim_mtx,n_ts=24,filter_neighbors=False)
-    model_transition = Model(X=X, y=y, similarity_mtx=sim_mtx,n_ts=24,n_road=len(RoadNode.all_roads))
     monitored_roads = RoadNode.getMonitoredRoads()
-    train_idx, test_idx = model_transition.testTrainSplit(test_pct=.2,monitored_roads=monitored_roads,set_seed=123)
+    model_transition = Model(X=X, y=y, similarity_mtx=sim_mtx,
+                             n_ts=24, n_road=len(RoadNode.all_roads),
+                             monitored_roads=monitored_roads)
 
-    model_transition.regression(train_idx,test_idx)
+    model_transition.regressionCV(n_splits=10,rand_seed=123)
+    #train_idx, test_idx = model_transition.testTrainSplit(test_pct=.2,monitored_roads=monitored_roads,set_seed=123)
+    # model_transition.regression(train_idx,test_idx)
 
 
