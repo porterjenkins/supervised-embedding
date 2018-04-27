@@ -12,6 +12,7 @@ import random
 import math
 import numpy as np
 import tensorflow as tf
+import argparse 
 from trip import Trip
 from database_access import DatabaseAccess
 from tensorflow.python.ops import variable_scope
@@ -215,7 +216,6 @@ def main(dao,batch_size,embedding_size,skip_window,num_skips,num_sampled,num_ste
             lambda x: -1 if np.isnan(x) else int(x)).tolist())
         # missing road segments is mapped to -1
 
-    # calculate number of road segments (TODO: improve efficiency)
     trips, num_segments, road_seq, seq_road = prepare_data(trips_raw)
 
     # Build and train a skip-gram model
@@ -224,21 +224,16 @@ def main(dao,batch_size,embedding_size,skip_window,num_skips,num_sampled,num_ste
 
 
 if __name__ == "__main__":
-    #dao = DatabaseAccess(city='', data_dir="data")
-    dao = DatabaseAccess(city='jinan',
-                         data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
+    parser = argparse.ArgumentParser(description="Embedding parameter settings")
+    parser.add_argument("--skip_window", nargs="?", const=1)
+
+    arg = parser.parse_args()
+
+    dao = DatabaseAccess(city='', data_dir="data")
+    #dao = DatabaseAccess(city='jinan',
+    #                     data_dir="/Volumes/Porter's Data/penn-state/data-sets/")
 
 
-    Trip.setDao(dao)
-    Trip.getTripsPickle()
-    trips_raw = [] # use road ID sequence to represent trips
-    for t in Trip.all_trips:
-        trips_raw.append(t.trajectory["road_node"].apply(
-            lambda x: -1 if np.isnan(x) else int(x)).tolist())
-        # missing road segments is mapped to -1
-    
-    # calculate number of road segments (TODO: improve efficiency)
-    trips, num_segments, road_seq, seq_road = prepare_data(trips_raw)
     
     # Build and train a skip-gram model
     batch_size = 32
@@ -248,116 +243,5 @@ if __name__ == "__main__":
     num_sampled = 16
     num_steps = 5000
 
-    #execute_w2v(dao,batch_size,embedding_size,skip_window,num_skips,num_sampled,num_steps)
-
-    
-    graph = tf.Graph()
-    with graph.as_default():
-        
-        # input
-        with tf.name_scope("inputs"):
-            train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
-            train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
-            
-        with tf.device("/cpu:0"):
-            with tf.name_scope("embeddings"):
-                embeddings = tf.Variable(
-                        tf.random_uniform([num_segments, embedding_size], -1.0, 1.0))
-                embed = tf.nn.embedding_lookup(embeddings, train_inputs)
-                
-            with tf.name_scope("weights"):
-                nce_weights = tf.Variable(
-                        tf.truncated_normal(
-                                [num_segments, embedding_size],
-                                stddev=1.0 / math.sqrt(embedding_size)))
-            with tf.name_scope("biases"):
-                nce_biases = tf.Variable(tf.zeros(num_segments))
-                
-        with tf.name_scope("loss"):
-            loss = tf.reduce_mean(
-                    tf.nn.nce_loss(
-                            weights=nce_weights,
-                            biases=nce_biases,
-                            labels=train_labels,
-                            inputs=embed,
-                            num_sampled=num_sampled,
-                            num_classes=num_segments
-                            ))
-        tf.summary.scalar("loss", loss)
-        tf.summary.histogram("wegiths", nce_weights)
-        tf.summary.histogram("biases", nce_biases)
-        
-        
-        global_step = variable_scope.get_variable(  # this needs to be defined for tf.contrib.layers.optimize_loss()
-              "global_step", [],
-              trainable=False,
-              dtype=dtypes.int64,
-              initializer=init_ops.constant_initializer(0, dtype=dtypes.int64))
-
-        with tf.name_scope("optimizer"):
-            optimizer = tf.contrib.layers.optimize_loss(
-                    loss, global_step, learning_rate=0.001, optimizer="Adam", 
-                    summaries=["gradients"])
-            
-            
-        norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
-        normalized_embeddings = embeddings / norm
-        
-        tf.summary.histogram("embedding_norms", norm)
-        
-        merged = tf.summary.merge_all()
-        
-        init = tf.global_variables_initializer()
-        
-        saver = tf.train.Saver()
-    
-    # Begin training
-    
-    num_steps = 5000
-    with tf.Session(graph=graph) as session:
-        writer = tf.summary.FileWriter("/tmp/unsupervised-embedding", session.graph)
-        
-        init.run()
-        
-        average_loss = 0
-        cur_trip = 0
-        cur_road = 0
-        next_avaliable = True
-        steps = 0
-        while next_avaliable:
-            batch_inputs, batch_labels, cur_trip, cur_road, next_avaliable  \
-                    = generate_batch(trips, batch_size, num_skips, 
-                                     skip_window, cur_trip, cur_road)
-            steps += 1
-                
-            feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
-            
-            run_metadata = tf.RunMetadata()
-
-            _, summary, loss_val = session.run(
-                    [optimizer, merged, loss],
-                    feed_dict=feed_dict,
-                    run_metadata=run_metadata)
-            average_loss += loss_val
-
-            writer.add_summary(summary, steps)
-
-            if steps % num_steps == 0:
-               average_loss /= num_steps
-               print("average loss at step", steps, ":", average_loss)
-               average_loss = 0
-        
-        final_embeddings = normalized_embeddings.eval()
-        
-        saver.save(session, "./model.ckpt")
-
-        writer.close()
-        
-    with open("road_embedding.pickle", "w") as fout:
-        pickle.dump(final_embeddings, fout)
-        pickle.dump(road_seq, fout)
-        pickle.dump(seq_road, fout)
-
-
-
+    main(dao,batch_size,embedding_size,skip_window,num_skips,num_sampled,num_steps)
 
