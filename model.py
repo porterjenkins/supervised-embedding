@@ -7,10 +7,40 @@ from sklearn.model_selection import train_test_split
 
 class Model:
 
-    def __init__(self,X,y,similarity_mtx):
+    def __init__(self,X,y,similarity_mtx,n_ts,n_road):
         self.edge_feature_mat = X
         self.edge_volume_mat = y
         self.similarity_mtx = similarity_mtx
+        self.n_ts = n_ts
+        self.n_road = n_road
+
+    @staticmethod
+    def takeTopK(similarity_mtx,k=5):
+        sim_mtx_sparse = np.zeros_like(similarity_mtx)
+        I, J = similarity_mtx.shape
+
+        for i in range(I):
+            val_dict = dict(zip(similarity_mtx[i,:],range(J)))
+            take = sorted(similarity_mtx[i,:],reverse=True)[:k]
+            for jj in take:
+                sim_mtx_sparse[i,val_dict[jj]] = jj
+
+        return sim_mtx_sparse
+
+
+
+
+
+    def testTrainSplit(self,test_pct, monitored_roads,set_seed):
+        idx_all = np.array(range(len(self.edge_volume_mat)))
+        road_split = np.split(idx_all,self.n_road)
+
+        n_test = int(len(monitored_roads) * test_pct)
+        np.random.seed(set_seed)
+        test_roads = np.random.permutation(monitored_roads)[:n_test]
+        test_idx = np.concatenate([road_split[i] for i in test_roads])
+        train_idx = np.setxor1d(idx_all,test_idx)
+        return train_idx, test_idx
 
     @staticmethod
     def eval(y, y_pred, thre = 5):
@@ -90,6 +120,7 @@ class Model:
     def regression(self,train_idx,test_idx):
 
 
+
         X_train = self.edge_feature_mat[train_idx, :]
         y_train = self.edge_volume_mat[train_idx]
         X_test = self.edge_feature_mat[test_idx, :]
@@ -101,4 +132,4 @@ class Model:
         y_pred = ols.predict(X_test)
         rmse, mape = Model.eval(y_test, y_pred)
 
-        print("test regression {2}: rmse {0}, mape {1}.".format(rmse, mape, 'OLS'))
+        print("test regression {:s}: rmse {:.4f}, mape {:.4f}.".format('OLS',rmse, mape))

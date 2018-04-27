@@ -53,26 +53,36 @@ if __name__ == '__main__':
     initCity(dao=dao,trip_pickle=True,cam_pickle=True)
 
 
+    """
+
     # save matrices for xianfeng's code
-    """fname = "/Users/porterjenkins/Documents/PENN STATE/RESEARCH/supervised-embedding/xianfeng/city-eye/data_back/"
+    fname = "/Users/porterjenkins/Documents/PENN STATE/RESEARCH/supervised-embedding/xianfeng/city-eye/data_back/"
     monitored_roads = RoadNode.getMonitoredRoads()
-    np.savez(fname + "monitored_file-porter.npz", monitored_nodes = monitored_roads)
+    np.savez(fname + "monitored_file-porter-small.npz", monitored_nodes = monitored_roads)
     rawnodes = RoadNode.getNodeVolumeMatrix()
-    np.savez(fname + "nodes-porter.npz",nodes = rawnodes)
+    np.savez(fname + "nodes-porter-small.npz",nodes = rawnodes)
     adjacency = RoadNode.getAdjacencyMatrix(tensor=True)
-    np.savez(fname + "weights-porter.npz", weights = adjacency)
-    transition = Trip.computeTransitionMatrices(hops=[5],l2_norm=False)
-    np.savez(fname + "flows-porter.npz", flows = transition)"""
+    #adjacency[0] = np.transpose(adjacency[0])
+    np.savez(fname + "weights-porter-small.npz", weights = adjacency)
+    #transition = Trip.computeTransitionMatrices(hops=range(1,6),l2_norm=True)
+    #transition = RoadNode.getEmbeddingSimilarity("road_embedding_50.pickle",l2_norm=True)
+    np.savez(fname + "flows-porter-small.npz", flows = transition)
+    """
 
 
-    #transition = Trip.computeTransitionMatrices(range(1,26), l2_norm=True)
-    transition = RoadNode.getGraphSimilarityMtx(method="euclidean")
 
-    X, y = RoadNode.getRoadFeatures(similarity_matrix=transition,n_ts=24,filter_neighbors=False)
-    np.random.seed(123)
-    train_idx, test_idx = train_test_split(range(len(y)))
 
-    model_transition = Model(X=X,y=y,similarity_mtx=transition)
+    sim_mtx = RoadNode.getEmbeddingSimilarity("road_embedding_50.pickle",l2_norm=True)
+    #sim_mtx = RoadNode.getGraphSimilarityMtx(method="euclidean")
+    #sim_mtx = Trip.computeTransitionMatrices(range(1,6), l2_norm=True)
+
+    sim_mtx = Model.takeTopK(sim_mtx,k=5)
+
+    X, y = RoadNode.getRoadFeatures(similarity_matrix=sim_mtx,n_ts=24,filter_neighbors=False)
+    model_transition = Model(X=X, y=y, similarity_mtx=sim_mtx,n_ts=24,n_road=len(RoadNode.all_roads))
+    monitored_roads = RoadNode.getMonitoredRoads()
+    train_idx, test_idx = model_transition.testTrainSplit(test_pct=.2,monitored_roads=monitored_roads,set_seed=123)
+
     model_transition.regression(train_idx,test_idx)
 
 

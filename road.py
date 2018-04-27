@@ -4,6 +4,9 @@ import numpy as np
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import OneHotEncoder
 from collections import deque, OrderedDict
+import sys
+from sklearn.preprocessing import normalize
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 class RoadNode:
@@ -207,7 +210,7 @@ class RoadNode:
                 road_i = cls.all_roads[cls.mtx_idx_to_node[i]]
                 while j < n_roads:
                     road_j = cls.all_roads[cls.mtx_idx_to_node[j]]
-                    similarity_mtx[i, j] = 1 / (euclidean(road_i.coordinates, road_j.coordinates))**2
+                    similarity_mtx[i, j] = 1 / (euclidean(road_i.coordinates, road_j.coordinates))
                     j += 1
 
                 i += 1
@@ -267,9 +270,9 @@ class RoadNode:
             for road_j in road_i.adjacent_roads:
                 j = road_j.node_id
                 if tensor:
-                    A[0,i,j] = 1
+                    A[0,cls.node_to_mtx_idx[i],cls.node_to_mtx_idx[j]] = 1
                 else:
-                    A[i,j] = 1
+                    A[cls.node_to_mtx_idx[i],cls.node_to_mtx_idx[j]] = 1
 
         return A
 
@@ -278,9 +281,41 @@ class RoadNode:
         roads_w_cam = list()
         for i, road in cls.all_roads.items():
             if road.cameras:
-                roads_w_cam.append(i)
+                roads_w_cam.append(cls.node_to_mtx_idx[i])
 
         return np.array(roads_w_cam)
+
+    @classmethod
+    def getEmbeddingSimilarity(cls,embedding_fname,l2_norm=False):
+
+        with open(embedding_fname, 'rb') as f:
+            embedding = pickle.load(f,fix_imports=True,encoding='latin1')
+            roadID_to_embedID = pickle.load(f)
+            embedID_to_roadID = pickle.load(f)
+
+        n_roads = len(cls.all_roads)
+        sim_mtx = np.zeros(shape = (n_roads,n_roads))
+
+        cnt = 0
+        for road_id_i, embed_mtx_idx_i in roadID_to_embedID.items():
+
+            sim_mtx_idx_i = cls.node_to_mtx_idx[road_id_i]
+            for road_id_j, embed_mtx_idx_j in roadID_to_embedID.items():
+                cnt += 1
+                sim_mtx_idx_j = cls.node_to_mtx_idx[road_id_j]
+
+                if road_id_i != road_id_j:
+                    #dot = np.dot(embedding[embed_mtx_idx_i,:],embedding[embed_mtx_idx_j,:])
+                    sim_mtx[sim_mtx_idx_i,sim_mtx_idx_j] = cosine_similarity(embedding[embed_mtx_idx_i,:].reshape(1,-1),embedding[embed_mtx_idx_j,:].reshape(1,-1))[0][0]
+
+                progress = round(cnt / float(len(roadID_to_embedID)**2) * 100, 2)
+                sys.stdout.write("\r Getting Embedding Similarity --> {}% complete".format(progress))
+                sys.stdout.flush()
+
+        if l2_norm:
+            sim_mtx = normalize(X=sim_mtx,axis=1,norm='l2')
+        return sim_mtx
+
 
 
 
