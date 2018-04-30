@@ -227,7 +227,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Embedding parameter settings")
     parser.add_argument("--skip_window", nargs="?", const=1)
 
-    arg = parser.parse_args()
+    arg = vars(parser.parse_args())
 
     dao = DatabaseAccess(city='', data_dir="data")
     #dao = DatabaseAccess(city='jinan',
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     # Build and train a skip-gram model
     batch_size = 32
     embedding_size = 100 
-    skip_window = 1
+    skip_window = int(arg['skip_window'])
     num_skips = 2
     num_sampled = 16
     num_steps = 5000
